@@ -1,5 +1,8 @@
 'use strict';
 
+// ─── API Key (default) ───────────────────────────────────
+if (!localStorage.getItem('geminiApiKey')) localStorage.setItem('geminiApiKey', 'YOUR_KEY_HERE');
+
 // ─── State ───────────────────────────────────────────────
 let todos      = JSON.parse(localStorage.getItem('todos') || '[]');
 let activeDay  = 'all';  // 'all' | 0-6
@@ -398,6 +401,136 @@ dayBtns.forEach(btn => {
 addBtn.addEventListener('click', addTodo);
 input.addEventListener('keydown', e => { if (e.key === 'Enter') addTodo(); });
 clearBtn.addEventListener('click', clearCompleted);
+
+// ─── Voice ───────────────────────────────────────────────
+const voiceBtn      = document.getElementById('voiceBtn');
+const voiceStatus   = document.getElementById('voiceStatus');
+const apiKeyModal   = document.getElementById('apiKeyModal');
+const apiKeyInput   = document.getElementById('apiKeyInput');
+const apiKeySave    = document.getElementById('apiKeySave');
+const apiKeyCancel  = document.getElementById('apiKeyCancel');
+
+let voiceState = 'idle'; // 'idle' | 'recording' | 'processing'
+
+function setVoiceState(state, msg) {
+  voiceState = state;
+  voiceBtn.classList.toggle('recording',   state === 'recording');
+  voiceBtn.classList.toggle('processing',  state === 'processing');
+  voiceStatus.textContent = msg || '';
+  voiceStatus.classList.toggle('visible', !!msg);
+}
+
+function openApiKeyModal() {
+  apiKeyInput.value = localStorage.getItem('geminiApiKey') || '';
+  apiKeyModal.classList.add('visible');
+  setTimeout(() => apiKeyInput.focus(), 50);
+}
+
+apiKeyModal.addEventListener('click', e => {
+  if (e.target === apiKeyModal) apiKeyModal.classList.remove('visible');
+});
+apiKeyCancel.addEventListener('click', () => apiKeyModal.classList.remove('visible'));
+apiKeySave.addEventListener('click', saveApiKey);
+apiKeyInput.addEventListener('keydown', e => { if (e.key === 'Enter') saveApiKey(); });
+
+function saveApiKey() {
+  const key = apiKeyInput.value.trim();
+  if (!key) return;
+  localStorage.setItem('geminiApiKey', key);
+  apiKeyModal.classList.remove('visible');
+  startVoice();
+}
+
+async function parseWithGemini(transcript) {
+  const key = localStorage.getItem('geminiApiKey');
+  const today = toDateStr(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+
+  const prompt =
+    `오늘: ${today}\n` +
+    `아래 한국어 음성 입력을 Todo 항목으로 변환해줘. JSON만 반환 (설명 없이):\n` +
+    `{"text":"할일 제목","date":"YYYY-MM-DD 또는 null","day":0~6 또는 null}\n\n` +
+    `규칙:\n` +
+    `- text: 날짜/요일 표현 제거, 문장 어미(이다/야/이에요/할게/함 등) 제거, 간결한 명사형으로\n` +
+    `- date: 특정 날짜 언급 시 YYYY-MM-DD (올해 기준), 없으면 null\n` +
+    `- day: 요일만 언급 시 0(일)~6(토), date가 있으면 null\n\n` +
+    `입력: "${transcript}"`;
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 200, temperature: 0 }
+      })
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || String(res.status));
+  }
+
+  const data = await res.json();
+  const raw  = data.candidates[0].content.parts[0].text.trim();
+  const json = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+  return JSON.parse(json);
+}
+
+function applyVoiceTodo(parsed) {
+  if (!parsed || !parsed.text) return;
+
+  const date = parsed.date || null;
+  const day  = date
+    ? parseDateStr(date).dow
+    : (parsed.day !== null && parsed.day !== undefined ? Number(parsed.day) : null);
+
+  todos.unshift({ id: Date.now(), text: parsed.text.trim(), done: false, date, day });
+  save();
+  render();
+}
+
+function startVoice() {
+  if (!localStorage.getItem('geminiApiKey')) { openApiKeyModal(); return; }
+  if (voiceState !== 'idle') return;
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    alert('음성 인식은 Chrome에서만 지원됩니다.');
+    return;
+  }
+
+  const rec = new SR();
+  rec.lang = 'ko-KR';
+  rec.interimResults = false;
+  rec.maxAlternatives = 1;
+
+  rec.onstart = () => setVoiceState('recording', '듣는 중...');
+  rec.onerror = () => setVoiceState('idle', '');
+  rec.onend   = () => { if (voiceState === 'recording') setVoiceState('idle', ''); };
+
+  rec.onresult = async e => {
+    const transcript = e.results[0][0].transcript.trim();
+    setVoiceState('processing', `"${transcript}" 분석 중...`);
+    try {
+      const parsed = await parseWithGemini(transcript);
+      applyVoiceTodo(parsed);
+    } catch (err) {
+      if (/400|403|API_KEY_INVALID|invalid.*key|key.*invalid/i.test(err.message)) {
+        localStorage.removeItem('geminiApiKey');
+        openApiKeyModal();
+      }
+    } finally {
+      setVoiceState('idle', '');
+    }
+  };
+
+  rec.start();
+}
+
+voiceBtn.addEventListener('click', startVoice);
+voiceBtn.addEventListener('contextmenu', e => { e.preventDefault(); openApiKeyModal(); });
 
 // ─── Init ────────────────────────────────────────────────
 render();

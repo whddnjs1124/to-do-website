@@ -533,6 +533,151 @@ body {
   background: var(--surface2);
 }
 
+/* ─── Voice Button ─── */
+.voice-btn {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition), background var(--transition);
+}
+
+.voice-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.voice-btn.recording {
+  color: var(--accent2);
+  border-color: var(--accent2);
+  background: rgba(240, 98, 146, 0.1);
+  animation: pulse-ring 1s ease infinite;
+}
+
+.voice-btn.processing {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-glow);
+}
+
+@keyframes pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(240, 98, 146, 0.4); }
+  50%       { box-shadow: 0 0 0 6px rgba(240, 98, 146, 0); }
+}
+
+/* ─── Voice Status ─── */
+.voice-status {
+  display: none;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  padding: 0 4px;
+  animation: fadeIn 0.2s ease;
+}
+
+.voice-status.visible {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── API Key Modal ─── */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-overlay.visible {
+  display: flex;
+}
+
+.modal-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px 24px;
+  width: min(420px, 90vw);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: slideIn 0.2s ease;
+}
+
+.modal-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.modal-desc {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.modal-input {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 0.88rem;
+  font-family: monospace;
+  padding: 10px 14px;
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.modal-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.modal-btn {
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 9px 20px;
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+
+.modal-btn-cancel {
+  background: var(--surface2);
+  color: var(--text-muted);
+}
+
+.modal-btn-cancel:hover { opacity: 0.8; }
+
+.modal-btn-save {
+  background: linear-gradient(135deg, var(--accent), #9d91ff);
+  color: #fff;
+}
+
+.modal-btn-save:hover { opacity: 0.88; }
+
 /* ─── Group Header ─── */
 .group-header {
   display: flex;
