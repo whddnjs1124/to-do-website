@@ -1,0 +1,571 @@
+/* ─── Reset & Base ─── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg:          #0d0d14;
+  --surface:     #16161f;
+  --surface2:    #1e1e2c;
+  --border:      #2a2a3d;
+  --accent:      #7c6ff7;
+  --accent-glow: rgba(124, 111, 247, 0.25);
+  --accent2:     #f06292;
+  --text:        #e8e8f0;
+  --text-muted:  #6b6b80;
+  --done:        #3a3a52;
+  --done-text:   #555570;
+  --radius:      14px;
+  --radius-sm:   8px;
+  --transition:  0.2s ease;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 48px 16px 80px;
+  background-image:
+    radial-gradient(ellipse 60% 40% at 20% 0%, rgba(124,111,247,0.08) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 40% at 80% 100%, rgba(240,98,146,0.06) 0%, transparent 70%);
+}
+
+/* ─── App Container ─── */
+.app {
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ─── Header ─── */
+.header {
+  padding: 8px 4px;
+}
+
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+
+.title {
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.date {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+.subtitle {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* ─── Input Area ─── */
+.input-area {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 6px 6px 16px;
+  display: flex;
+  align-items: center;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.input-area:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.input-wrapper {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 10px;
+}
+
+.input-icon {
+  font-size: 1.3rem;
+  color: var(--accent);
+  line-height: 1;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.todo-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 0.95rem;
+  padding: 10px 0;
+}
+
+.todo-input::placeholder {
+  color: var(--text-muted);
+}
+
+.add-btn {
+  background: linear-gradient(135deg, var(--accent), #9d91ff);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 9px 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--transition), transform var(--transition);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.add-btn:hover  { opacity: 0.88; transform: translateY(-1px); }
+.add-btn:active { opacity: 1;    transform: translateY(0); }
+
+/* ─── Day Bar ─── */
+.day-bar {
+  display: flex;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.day-bar::-webkit-scrollbar { display: none; }
+
+.day-btn {
+  flex: 1;
+  min-width: 36px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 7px 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  position: relative;
+  transition: background var(--transition), color var(--transition);
+}
+
+.day-btn:hover {
+  color: var(--text);
+  background: var(--surface2);
+}
+
+.day-btn.active {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
+
+.day-btn.today:not(.active)::after {
+  content: '';
+  display: block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin: 3px auto 0;
+}
+
+/* ─── Todo List ─── */
+.todo-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ─── Todo Item ─── */
+.todo-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  animation: slideIn 0.2s ease forwards;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.todo-item:hover {
+  border-color: var(--accent);
+  background: var(--surface2);
+}
+
+.todo-item.done {
+  background: var(--done);
+  border-color: transparent;
+}
+
+.todo-item.removing {
+  animation: slideOut 0.2s ease forwards;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideOut {
+  from { opacity: 1; transform: translateX(0); max-height: 80px; }
+  to   { opacity: 0; transform: translateX(30px); max-height: 0; padding: 0; margin: 0; }
+}
+
+/* ─── Custom Checkbox ─── */
+.check-wrapper {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  position: relative;
+  cursor: pointer;
+}
+
+.check-wrapper input[type="checkbox"] {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.checkmark {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: transparent;
+  transition: border-color var(--transition), background var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.checkmark::after {
+  content: '';
+  width: 5px;
+  height: 9px;
+  border: 2px solid #fff;
+  border-top: none;
+  border-left: none;
+  transform: rotate(45deg) scale(0);
+  transition: transform var(--transition);
+  margin-top: -2px;
+}
+
+.check-wrapper input:checked + .checkmark {
+  background: linear-gradient(135deg, var(--accent), #9d91ff);
+  border-color: transparent;
+}
+
+.check-wrapper input:checked + .checkmark::after {
+  transform: rotate(45deg) scale(1);
+}
+
+/* ─── Todo Text ─── */
+.todo-text {
+  flex: 1;
+  font-size: 0.95rem;
+  color: var(--text);
+  line-height: 1.4;
+  word-break: break-word;
+  transition: color var(--transition);
+}
+
+.todo-item.done .todo-text {
+  color: var(--done-text);
+  text-decoration: line-through;
+  text-decoration-color: var(--done-text);
+}
+
+/* ─── Delete Button ─── */
+.delete-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  line-height: 1;
+  transition: color var(--transition), background var(--transition);
+  opacity: 0;
+}
+
+.todo-item:hover .delete-btn {
+  opacity: 1;
+}
+
+.delete-btn:hover {
+  color: var(--accent2);
+  background: rgba(240, 98, 146, 0.1);
+}
+
+/* ─── Empty State ─── */
+.empty-state {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 0;
+  color: var(--text-muted);
+}
+
+.empty-state.visible {
+  display: flex;
+}
+
+.empty-icon {
+  font-size: 2rem;
+  opacity: 0.4;
+}
+
+.empty-state p {
+  font-size: 0.9rem;
+}
+
+/* ─── Footer ─── */
+.footer {
+  display: none;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 4px;
+}
+
+.footer.visible {
+  display: flex;
+}
+
+#leftCount {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.clear-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color var(--transition), color var(--transition);
+}
+
+.clear-btn:hover {
+  border-color: var(--accent2);
+  color: var(--accent2);
+}
+
+/* ─── Calendar ─── */
+.calendar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.cal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.cal-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.cal-nav {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.72rem;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition), background var(--transition);
+}
+
+.cal-nav:hover {
+  color: var(--text);
+  background: var(--surface2);
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.cal-dow {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 4px 0 6px;
+}
+
+.cal-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  gap: 3px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+
+.cal-cell:not(.empty):hover     { background: var(--surface2); color: var(--text); }
+.cal-cell.cal-today             { color: var(--accent); font-weight: 700; }
+.cal-cell.cal-selected          { background: var(--accent); color: #fff; font-weight: 700; }
+.cal-cell.cal-selected:hover    { background: var(--accent); opacity: 0.85; }
+.cal-cell.empty                 { pointer-events: none; }
+
+.cal-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent2);
+  flex-shrink: 0;
+}
+
+.cal-cell.cal-selected .cal-dot { background: rgba(255, 255, 255, 0.75); }
+
+/* ─── Date Tag on todo items ─── */
+.date-tag {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  color: var(--accent2);
+  border: 1px solid var(--accent2);
+  border-radius: 20px;
+  padding: 2px 7px;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+
+/* ─── Drag Handle ─── */
+.drag-handle {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  cursor: grab;
+  opacity: 0;
+  font-size: 1rem;
+  line-height: 1;
+  user-select: none;
+  transition: opacity var(--transition);
+}
+
+.todo-item:hover .drag-handle { opacity: 0.5; }
+.todo-item.dragging            { opacity: 0.4; border-style: dashed; }
+.todo-item.drag-over           { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
+
+/* ─── Inline Edit ─── */
+.todo-edit-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--accent);
+  outline: none;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-family: inherit;
+  padding: 2px 0;
+  line-height: 1.4;
+}
+
+/* ─── Day Select ─── */
+.day-select {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-family: inherit;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 3px 8px;
+  cursor: pointer;
+  outline: none;
+  color-scheme: dark;
+  transition: border-color var(--transition), color var(--transition);
+}
+
+.day-select:hover,
+.day-select:focus {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.day-select.has-day {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--surface2);
+}
+
+/* ─── Group Header ─── */
+.group-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  padding: 0 2px;
+  margin-top: 4px;
+}
+
+.group-header:first-child {
+  margin-top: 0;
+}
+
+.group-header::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.group-header.group-today {
+  color: var(--accent);
+}
+
+.group-header.group-today::after {
+  background: var(--accent-glow);
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar       { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }

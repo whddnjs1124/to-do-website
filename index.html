@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Todo List</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="app">
+
+    <header class="header">
+      <div class="header-top">
+        <h1 class="title">MY TASKS</h1>
+        <span class="date" id="currentDate"></span>
+      </div>
+      <p class="subtitle" id="taskCount">오늘도 할 일을 정복해봐요!</p>
+    </header>
+
+    <div class="input-area">
+      <div class="input-wrapper">
+        <span class="input-icon">+</span>
+        <input
+          type="text"
+          id="todoInput"
+          class="todo-input"
+          placeholder="새로운 할 일을 추가하세요..."
+          autocomplete="off"
+        />
+        <button class="add-btn" id="addBtn">추가</button>
+      </div>
+    </div>
+
+    <div class="calendar" id="calendar"></div>
+
+    <div class="day-bar">
+      <button class="day-btn active" data-day="all">전체</button>
+      <button class="day-btn" data-day="1">월</button>
+      <button class="day-btn" data-day="2">화</button>
+      <button class="day-btn" data-day="3">수</button>
+      <button class="day-btn" data-day="4">목</button>
+      <button class="day-btn" data-day="5">금</button>
+      <button class="day-btn" data-day="6">토</button>
+      <button class="day-btn" data-day="0">일</button>
+    </div>
+
+    <ul class="todo-list" id="todoList"></ul>
+
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">✦</div>
+      <p>할 일이 없어요</p>
+    </div>
+
+    <footer class="footer" id="footer">
+      <span id="leftCount"></span>
+      <button class="clear-btn" id="clearBtn">완료 항목 삭제</button>
+    </footer>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
