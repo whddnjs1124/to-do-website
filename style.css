@@ -590,6 +590,40 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* ─── Time Input ─── */
+.time-input {
+  flex-shrink: 0;
+  width: 80px;
+  font-size: 0.75rem;
+  font-family: inherit;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 3px 8px;
+  cursor: pointer;
+  outline: none;
+  color-scheme: dark;
+  transition: border-color var(--transition), color var(--transition);
+}
+
+.time-input::-webkit-calendar-picker-indicator {
+  filter: invert(0.5);
+  cursor: pointer;
+}
+
+.time-input:hover,
+.time-input:focus {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.time-input.has-time {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--surface2);
+}
+
 /* ─── Group Header ─── */
 .group-header {
   display: flex;

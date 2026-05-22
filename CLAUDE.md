@@ -19,7 +19,7 @@ Three files, each with a single responsibility:
 Each todo object: `{ id, text, done, day, date }`
 
 - `day`: `null` | `0–6` (day of week, 0 = 일, 1 = 월 … 6 = 토) — set by the day tab bar or derived from `date`
-- `date`: `null` | `'YYYY-MM-DD'` — set by clicking a calendar date
+- `date`: `null` | `'YYYY-MM-DD'` — set by clicking a calendar date or via voice input
 - When a calendar date is selected, both `date` and `day` are populated together (day is derived from the date)
 
 ## Filtering Logic (`filtered()`)
@@ -48,3 +48,44 @@ Priority order — only one filter is active at a time:
 **Todo IDs** are `Date.now()` timestamps — unique enough for a single-user local app.
 
 **Subtitle and footer** visibility are driven entirely inside `render()` based on counts — don't add separate update calls elsewhere.
+
+## Date Group Headers
+
+When the filtered view contains todos with **2개 이상의 서로 다른 날짜**, `render()` inserts `<li class="group-header">` separators between groups.
+
+- `sortedGroups(items)` — groups `items` by `todo.date`, sorts groups ascending by date (null group last), returns `[{ dateStr, todos }]`.
+- `buildGroupHeader(dateStr)` — returns a `<li class="group-header">` element. Today's group gets class `group-today` and displays "오늘 · M월 D일 (요일)". Null group shows "날짜 미지정".
+- Group headers are shown only when `groups.length > 1`. Single-group views render without headers.
+- This applies to all views: specific day tab, 전체, and date-selected views.
+
+## Voice Input
+
+Mic button (`#voiceBtn`) in the input area triggers browser speech recognition (Web Speech API, `ko-KR`). **No external API — fully client-side.**
+
+**Flow:** click → `SpeechRecognition` starts → user speaks → `onresult` fires → `parseVoiceInput(transcript)` → `applyVoiceTodo(parsed)`.
+
+### `parseVoiceInput(transcript)` — Korean date parser
+
+Extracts date/day from the transcript in priority order:
+
+| Pattern | Example | Result |
+|---|---|---|
+| `N월 N일` | "5월 20일 졸업식" | `date: '2026-05-20'` |
+| `오늘` | "오늘 병원" | `date: today` |
+| `내일` | "내일 보고서" | `date: tomorrow` |
+| `모레` | "모레 모임" | `date: day after tomorrow` |
+| `N요일` | "월요일 회의" | `day: 1` |
+| (없음) | "장보기" | `date: today` (기본값) |
+
+After extracting date/day, removes the matched expression from the text, then strips common Korean sentence endings (`이다/야/이에요/할게/함/있어/있다` 등).
+
+### `applyVoiceTodo({ text, date, day })`
+
+Directly pushes `{ id: Date.now(), text, done: false, date, day }` to `todos` (does not use `createTodo()` — avoids touching `activeDate`/`activeDay` filter state). Calls `save()` then `render()`.
+
+### Voice UI states
+
+- **recording**: `.voice-btn.recording` — pink pulse animation, status shows "듣는 중..."
+- **idle**: default state, status hidden
+- `voiceState` guard prevents double-start.
+- Chrome only (Web Speech API).

@@ -63,7 +63,8 @@ function createTodo(text) {
     text: text.trim(),
     done: false,
     date: activeDate || null,
-    day:  activeDate ? parseDateStr(activeDate).dow : (activeDay === 'all' ? null : activeDay)
+    day:  activeDate ? parseDateStr(activeDate).dow : (activeDay === 'all' ? null : activeDay),
+    time: null
   };
 }
 
@@ -168,6 +169,8 @@ function buildItem(todo) {
     ? (() => { const { m, d } = parseDateStr(todo.date); return `<span class="date-tag">${m}/${d}</span>`; })()
     : '';
 
+  const hasTime = !!todo.time;
+
   li.innerHTML = `
     <span class="drag-handle">⠿</span>
     <label class="check-wrapper" for="${checkId}">
@@ -177,6 +180,7 @@ function buildItem(todo) {
     <span class="todo-text">${escapeHtml(todo.text)}</span>
     ${dateTag}
     <select class="day-select${hasDayAssigned ? ' has-day' : ''}">${dayOptions}</select>
+    <input type="time" class="time-input${hasTime ? ' has-time' : ''}" value="${hasTime ? todo.time : ''}" title="알림 시간 설정" />
     <button class="delete-btn" title="삭제">&#x2715;</button>
   `;
 
@@ -194,6 +198,16 @@ function buildItem(todo) {
     t.day = e.target.value === '' ? null : parseInt(e.target.value);
     save();
     render();
+  });
+
+  li.querySelector('.time-input').addEventListener('change', async e => {
+    const t = todos.find(x => x.id === todo.id);
+    if (!t) return;
+    t.time = e.target.value || null;
+    e.target.classList.toggle('has-time', !!t.time);
+    notifiedSet.delete(notifyKey(t));
+    if (t.time) await requestNotifyPermission();
+    save();
   });
 
   // ─── Drag & drop ──────────────────────────────────────
@@ -448,18 +462,32 @@ function parseVoiceInput(transcript) {
   // 날짜/요일 모두 없으면 오늘로
   if (!date && day === null) date = toDateStr(y, now.getMonth(), now.getDate());
 
+  // 시간 파싱: 오전/오후/아침/저녁/밤 N시 [N분]
+  let time = null;
+  const timeRe = /(오전|오후|아침|저녁|밤)?\s*(\d{1,2})시(?:\s*(\d{1,2})분)?/;
+  const tm = text.match(timeRe);
+  if (tm) {
+    let h      = parseInt(tm[2]);
+    const m    = parseInt(tm[3] || '0');
+    const pre  = tm[1];
+    if ((pre === '오후' || pre === '저녁' || pre === '밤') && h < 12) h += 12;
+    if ((pre === '오전' || pre === '아침') && h === 12) h = 0;
+    time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    text = text.replace(tm[0], '');
+  }
+
   // 문장 어미 제거
   text = text
     .replace(/\s*(이다|이야|야|이에요|예요|해야\s*해|해야겠어|할게|함|있어|있다|거든|거야|인데|임)\s*$/, '')
     .replace(/\s+/g, ' ')
     .trim();
 
-  return { text, date, day };
+  return { text, date, day, time };
 }
 
-function applyVoiceTodo({ text, date, day }) {
+function applyVoiceTodo({ text, date, day, time }) {
   if (!text) return;
-  todos.unshift({ id: Date.now(), text, done: false, date: date || null, day: day ?? null });
+  todos.unshift({ id: Date.now(), text, done: false, date: date || null, day: day ?? null, time: time || null });
   save();
   render();
 }
@@ -488,6 +516,40 @@ function startVoice() {
 }
 
 voiceBtn.addEventListener('click', startVoice);
+
+// ─── Notifications ───────────────────────────────────────
+const notifiedSet = new Set();
+
+function notifyKey(todo) {
+  const now = new Date();
+  return `${todo.id}_${toDateStr(now.getFullYear(), now.getMonth(), now.getDate())}`;
+}
+
+async function requestNotifyPermission() {
+  if (Notification.permission === 'default') await Notification.requestPermission();
+}
+
+function checkNotifications() {
+  if (Notification.permission !== 'granted') return;
+  const now      = new Date();
+  const todayStr = toDateStr(now.getFullYear(), now.getMonth(), now.getDate());
+  const hh = now.getHours(), mm = now.getMinutes();
+
+  todos.forEach(t => {
+    if (!t.time || t.done) return;
+    const isDate = t.date === todayStr;
+    const isDay  = t.day !== null && t.day === now.getDay();
+    if (!isDate && !isDay) return;
+    const [th, tm] = t.time.split(':').map(Number);
+    if (th !== hh || tm !== mm) return;
+    const key = notifyKey(t);
+    if (notifiedSet.has(key)) return;
+    notifiedSet.add(key);
+    new Notification('할 일 알림', { body: t.text, tag: String(t.id) });
+  });
+}
+
+setInterval(checkNotifications, 30_000);
 
 // ─── Init ────────────────────────────────────────────────
 render();
