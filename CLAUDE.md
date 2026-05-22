@@ -58,6 +58,18 @@ When the filtered view contains todos with **2개 이상의 서로 다른 날짜
 - Group headers are shown only when `groups.length > 1`. Single-group views render without headers.
 - This applies to all views: specific day tab, 전체, and date-selected views.
 
+## Past-Incomplete Todos
+
+`isPastIncomplete(todo)` returns `true` when `todo.date` is before today **and** `todo.done === false`. Todos with no `date` (date-less or day-only) are never considered past-incomplete.
+
+**Behaviour in `buildItem()`:**
+- Adds `.incomplete` class to the `<li>`.
+- Renders a `<span class="incomplete-tag">미완료</span>` badge next to the date tag.
+- The checkbox `<input>` receives the `disabled` attribute — the item cannot be toggled to done.
+- The delete button remains fully functional; users may also choose to leave the item as-is.
+
+**CSS:** `.todo-item.incomplete` uses a red-tinted border/background. `.todo-item.incomplete .check-wrapper` has `opacity: 0.25` and `pointer-events: none`. `.incomplete-tag` is a small red pill badge.
+
 ## Voice Input
 
 Mic button (`#voiceBtn`) in the input area triggers browser speech recognition (Web Speech API, `ko-KR`). **No external API — fully client-side.**

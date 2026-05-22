@@ -590,38 +590,32 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ─── Time Input ─── */
-.time-input {
+/* ─── Incomplete (past unfinished) todo ─── */
+.todo-item.incomplete {
+  border-color: rgba(255, 107, 107, 0.3);
+  background: rgba(255, 80, 80, 0.04);
+}
+
+.todo-item.incomplete:hover {
+  border-color: rgba(255, 107, 107, 0.55);
+  background: rgba(255, 80, 80, 0.08);
+}
+
+.todo-item.incomplete .check-wrapper {
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+.incomplete-tag {
   flex-shrink: 0;
-  width: 80px;
-  font-size: 0.75rem;
-  font-family: inherit;
-  color: var(--text-muted);
-  background: var(--surface);
-  border: 1px solid var(--border);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #ff6b6b;
+  border: 1px solid rgba(255, 107, 107, 0.5);
   border-radius: 20px;
-  padding: 3px 8px;
-  cursor: pointer;
-  outline: none;
-  color-scheme: dark;
-  transition: border-color var(--transition), color var(--transition);
-}
-
-.time-input::-webkit-calendar-picker-indicator {
-  filter: invert(0.5);
-  cursor: pointer;
-}
-
-.time-input:hover,
-.time-input:focus {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.time-input.has-time {
-  color: var(--accent);
-  border-color: var(--accent);
-  background: var(--surface2);
+  padding: 2px 8px;
+  white-space: nowrap;
 }
 
 /* ─── Group Header ─── */
