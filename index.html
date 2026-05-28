@@ -20,7 +20,6 @@
 
     <div class="input-area">
       <div class="input-wrapper">
-        <span class="input-icon">+</span>
         <input
           type="text"
           id="todoInput"
@@ -55,7 +54,13 @@
       <button class="day-btn" data-day="0">일</button>
     </div>
 
+    <div class="view-toggle">
+      <button class="view-btn active" data-view="list">리스트</button>
+      <button class="view-btn" data-view="planner">플래너</button>
+    </div>
+
     <ul class="todo-list" id="todoList"></ul>
+    <div class="planner-view" id="plannerView"></div>
 
     <div class="empty-state" id="emptyState">
       <div class="empty-icon">✦</div>

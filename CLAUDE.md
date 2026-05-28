@@ -16,16 +16,20 @@ Three files, each with a single responsibility:
 
 ## Data Model
 
-Each todo object: `{ id, text, done, day, date }`
+Each todo object: `{ id, text, done, day, date, recurring, lastDoneDate, startTime, endTime }`
 
 - `day`: `null` | `0–6` (day of week, 0 = 일, 1 = 월 … 6 = 토) — set by the day tab bar or derived from `date`
 - `date`: `null` | `'YYYY-MM-DD'` — set by clicking a calendar date or via voice input
+- `recurring`: `null` | `'weekly'` — makes the todo repeat every week on its assigned `day`
+- `lastDoneDate`: `null` | `'YYYY-MM-DD'` — used instead of `done` for recurring todos; records the last date it was checked
+- `startTime`: `null` | `'HH:MM'` — 24-hour format start time for planner view
+- `endTime`: `null` | `'HH:MM'` — 24-hour format end time for planner view
 - When a calendar date is selected, both `date` and `day` are populated together (day is derived from the date)
 
 ## Filtering Logic (`filtered()`)
 
 Priority order — only one filter is active at a time:
-1. `activeDate` is set → show todos where `t.date === activeDate`
+1. `activeDate` is set → show todos where `t.date === activeDate`, **plus** recurring todos whose `t.day` matches the date's weekday (only for future/today dates)
 2. `activeDay !== 'all'` → show todos where `t.day === activeDay`
 3. Otherwise → show all todos
 
@@ -33,11 +37,15 @@ Priority order — only one filter is active at a time:
 
 **State mutations always follow this sequence:** mutate `todos` → `save()` → `render()`.
 
+**`isDone(todo)`** — use this instead of `todo.done` directly. For recurring todos it checks `todo.lastDoneDate === getTodayStr()`; for regular todos it checks `todo.done`.
+
+**`isPastIncomplete(todo)`** — returns `true` when `todo.date` is before today AND `todo.done === false` AND `todo.recurring` is falsy. Recurring todos are never past-incomplete.
+
 **Calendar + day tab sync:** clicking a calendar date sets both `activeDate` and `activeDay` (to the day of week of that date) and highlights the corresponding day tab. Clicking a day tab clears `activeDate` and shows all todos for that weekday. These two states are mutually exclusive — always clear one when setting the other.
 
 **`render()` calls `renderCalendar()`** at the end to keep calendar dots in sync with the todo list. Don't call `renderCalendar()` separately after `render()` — it's redundant.
 
-**Delete animation:** `deleteTodo` adds `.removing` CSS class first, then removes the item from `todos` only after the `animationend` event fires — don't bypass this when adding delete logic. `clearCompleted` follows the same pattern and uses the rendered DOM to determine which IDs to remove.
+**Delete animation:** `deleteTodo` adds `.removing` CSS class first, then removes the item from `todos` only after the `animationend` event fires — don't bypass this when adding delete logic. `clearCompleted` follows the same pattern and collects IDs upfront before animation.
 
 **Inline edit:** double-clicking `.todo-text` replaces it with an `<input>` in-place. The blur listener is explicitly removed before calling commit on Enter/Escape to prevent a double-commit.
 
@@ -49,26 +57,78 @@ Priority order — only one filter is active at a time:
 
 **Subtitle and footer** visibility are driven entirely inside `render()` based on counts — don't add separate update calls elsewhere.
 
-## Date Group Headers
+**Delete button visibility:** the `.delete-btn` is hidden by default (`opacity: 0; pointer-events: none`) and only becomes visible (via CSS) when the item has `.done` or `.incomplete` class. It does NOT show on hover for normal active items — this is intentional to prevent accidental deletion.
 
-When the filtered view contains todos with **2개 이상의 서로 다른 날짜**, `render()` inserts `<li class="group-header">` separators between groups.
+## View Toggle (리스트 / 플래너)
 
-- `sortedGroups(items)` — groups `items` by `todo.date`, sorts groups ascending by date (null group last), returns `[{ dateStr, todos }]`.
-- `buildGroupHeader(dateStr)` — returns a `<li class="group-header">` element. Today's group gets class `group-today` and displays "오늘 · M월 D일 (요일)". Null group shows "날짜 미지정".
-- Group headers are shown only when `groups.length > 1`. Single-group views render without headers.
-- This applies to all views: specific day tab, 전체, and date-selected views.
+`viewMode` state: `'list'` | `'planner'`. Toggle buttons live in `.view-toggle` below the day bar.
+
+In `render()`, when `viewMode === 'planner'`:
+- `#todoList` is hidden via `style.display = 'none'`
+- `#plannerView` gets `.visible` class and `renderPlanner(items)` is called
+- `emptyState` is never shown in planner mode
+
+## Group Headers (List View)
+
+**전체 탭:** uses `sortedGroupsAll(items)` which returns groups in order: date-specific todos (sorted ascending by date) → day-of-week todos (월→화→수→목→금→토→일) → "요일 미지정". Each group type gets a different header: `buildGroupHeader(dateStr)` for date groups, `buildDayGroupHeader(key)` for day/none groups.
+
+**Other tabs / date filter:** uses `sortedGroups(items)` grouped by `t.date`. Headers shown only when `groups.length > 1`. Null-date group shows "날짜 미지정".
+
+## Planner View
+
+**Constants:** `HOUR_HEIGHT = 60` (px per hour, scale: 1px = 1 minute), `PLANNER_START = 0`, `PLANNER_END = 23`.
+
+**Single day view** (day tab or date selected):
+- `renderPlanner(items)` splits items into `unassigned` (no `startTime`) and `scheduled` (has `startTime`)
+- Unassigned shown as chips at top
+- Full 00:00–23:00 time grid via `buildPlannerGrid(scheduled, 0, 23, showNow)`
+- Hour labels shown every 1 hour (60px rows are readable)
+
+**전체 tab:**
+- Groups scheduled items by `day`
+- Each day with scheduled items gets a compressed timeline (startH = min hour - 1, endH = max endTime hour + 1)
+- Today's day section highlighted with `pl-day-today` class
+
+**Event card positioning:**
+- `top = (sh - startH) * HOUR_HEIGHT + sm` px (sm = minutes, 1px = 1min)
+- `height = Math.max(24, dur)` px where `dur` is duration in minutes
+
+**Now-line:** shown when viewing today's day or today's date. Positioned at `(nh - startH) * HOUR_HEIGHT + nm` px.
+
+## Recurring Todos
+
+`recurring: 'weekly'` makes a todo repeat every week on its `day`.
+
+**Toggle:** the repeat SVG button (`.recurring-btn`) on each todo item toggles `recurring` between `null` and `'weekly'`. When turning off, `lastDoneDate` is also cleared.
+
+**Done state:** recurring todos use `lastDoneDate` instead of `done`. `isDone(t)` returns `t.lastDoneDate === getTodayStr()` for recurring. `toggleTodo` sets `lastDoneDate` to today (or clears it) for recurring todos.
+
+**clearCompleted:** recurring todos are excluded — they are never deleted by bulk-clear. Only non-recurring completed todos are removed.
+
+**Calendar dots:** `renderCalendar()` computes `recurringDays` (set of weekday numbers with `recurring` todos) and places a purple `.cal-recurring-dot` on all future dates matching those weekdays. Regular todo dots remain pink (`.cal-dot`).
+
+## Time Picker (startTime / endTime)
+
+Each todo item has a time tag (clock SVG icon when unset, `HH:MM–HH:MM` badge when set). Clicking opens an inline popup with:
+- Two `<select>` rows: hours (00–23) and minutes (00, 05, 10 ... 55) for start and end times
+- 저장 saves both times; 삭제 clears them to null
+- Opening the picker dims all other list items (`.time-dimmed` class) so the popup is readable
+
+The picker popup is `position: absolute` on the `.todo-item` (which has `position: relative`) with `z-index: 10` when `.time-editing` is active.
+
+**`timeSelectsHtml(timeStr, hClass, mClass)`** generates the hour+minute select HTML. If `timeStr` is set, it pre-selects the matching values (minute rounded to nearest 5).
 
 ## Past-Incomplete Todos
 
-`isPastIncomplete(todo)` returns `true` when `todo.date` is before today **and** `todo.done === false`. Todos with no `date` (date-less or day-only) are never considered past-incomplete.
+`isPastIncomplete(todo)` returns `true` when `todo.date` is before today **and** `todo.done === false` **and** `!todo.recurring`.
 
 **Behaviour in `buildItem()`:**
 - Adds `.incomplete` class to the `<li>`.
 - Renders a `<span class="incomplete-tag">미완료</span>` badge next to the date tag.
 - The checkbox `<input>` receives the `disabled` attribute — the item cannot be toggled to done.
-- The delete button remains fully functional; users may also choose to leave the item as-is.
+- The delete button remains fully functional.
 
-**CSS:** `.todo-item.incomplete` uses a red-tinted border/background. `.todo-item.incomplete .check-wrapper` has `opacity: 0.25` and `pointer-events: none`. `.incomplete-tag` is a small red pill badge.
+**CSS:** `.todo-item.incomplete` uses a red-tinted border/background. `.todo-item.incomplete .check-wrapper` has `opacity: 0.25` and `pointer-events: none`.
 
 ## Voice Input
 
@@ -89,11 +149,11 @@ Extracts date/day from the transcript in priority order:
 | `N요일` | "월요일 회의" | `day: 1` |
 | (없음) | "장보기" | `date: today` (기본값) |
 
-After extracting date/day, removes the matched expression from the text, then strips common Korean sentence endings (`이다/야/이에요/할게/함/있어/있다` 등).
+After extracting date/day, removes the matched expression from the text, then strips common Korean sentence endings.
 
 ### `applyVoiceTodo({ text, date, day })`
 
-Directly pushes `{ id: Date.now(), text, done: false, date, day }` to `todos` (does not use `createTodo()` — avoids touching `activeDate`/`activeDay` filter state). Calls `save()` then `render()`.
+Directly pushes to `todos` with `recurring: null, lastDoneDate: null, startTime: null, endTime: null` (does not use `createTodo()` — avoids touching `activeDate`/`activeDay` filter state).
 
 ### Voice UI states
 

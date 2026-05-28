@@ -7,19 +7,27 @@ let activeDate = null;   // null | 'YYYY-MM-DD'
 let draggingId = null;
 let calYear    = new Date().getFullYear();
 let calMonth   = new Date().getMonth(); // 0-based
+let viewMode   = 'list'; // 'list' | 'planner'
 
 // ─── DOM refs ────────────────────────────────────────────
 const input      = document.getElementById('todoInput');
 const addBtn     = document.getElementById('addBtn');
 const list       = document.getElementById('todoList');
+const plannerEl  = document.getElementById('plannerView');
 const emptyState = document.getElementById('emptyState');
 const footer     = document.getElementById('footer');
 const leftCount  = document.getElementById('leftCount');
 const clearBtn   = document.getElementById('clearBtn');
 const dayBtns    = document.querySelectorAll('.day-btn');
+const viewBtns   = document.querySelectorAll('.view-btn');
 const dateEl     = document.getElementById('currentDate');
 const subtitleEl = document.getElementById('taskCount');
 const calEl      = document.getElementById('calendar');
+
+// ─── Planner constants ────────────────────────────────────
+const HOUR_HEIGHT   = 60; // px per hour (1px = 1 min)
+const PLANNER_START = 0;
+const PLANNER_END   = 23;
 
 // ─── Date display & today highlight ──────────────────────
 (function setDate() {
@@ -75,7 +83,22 @@ function createTodo(text) {
     day:          activeDate ? parseDateStr(activeDate).dow : (activeDay === 'all' ? null : activeDay),
     recurring:    null,
     lastDoneDate: null,
+    startTime:    null,
+    endTime:      null,
   };
+}
+
+// ─── Time select HTML generator ──────────────────────────
+function timeSelectsHtml(timeStr, hClass, mClass) {
+  const h = timeStr ? parseInt(timeStr.split(':')[0], 10) : 0;
+  const m = timeStr ? Math.round(parseInt(timeStr.split(':')[1], 10) / 5) * 5 % 60 : 0;
+  const hourOpts = Array.from({ length: 24 }, (_, i) =>
+    `<option value="${i}"${i === h ? ' selected' : ''}>${String(i).padStart(2, '0')}</option>`
+  ).join('');
+  const minOpts = [0,5,10,15,20,25,30,35,40,45,50,55].map(min =>
+    `<option value="${min}"${min === m ? ' selected' : ''}>${String(min).padStart(2, '0')}</option>`
+  ).join('');
+  return `<select class="time-select ${hClass}">${hourOpts}</select><span class="time-colon">:</span><select class="time-select ${mClass}">${minOpts}</select>`;
 }
 
 // ─── Past-incomplete check ────────────────────────────────
@@ -213,6 +236,12 @@ function buildItem(todo) {
 
   const incompleteTag = isIncomplete ? '<span class="incomplete-tag">미완료</span>' : '';
 
+  const hasTime    = todo.startTime || todo.endTime;
+  const timeLabel  = hasTime
+    ? [todo.startTime, todo.endTime].filter(Boolean).join('–')
+    : '';
+  const clockSvg   = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
+
   li.innerHTML = `
     <span class="drag-handle">⠿</span>
     <label class="check-wrapper" for="${checkId}">
@@ -222,6 +251,21 @@ function buildItem(todo) {
     <span class="todo-text">${escapeHtml(todo.text)}</span>
     ${dateTag}
     ${incompleteTag}
+    <span class="time-tag${hasTime ? ' has-time' : ''}" title="시간 설정">${hasTime ? timeLabel : clockSvg}</span>
+    <div class="time-picker-popup">
+      <div class="time-row">
+        <label class="time-label">시작</label>
+        <div class="time-selects">${timeSelectsHtml(todo.startTime, 'time-start-h', 'time-start-m')}</div>
+      </div>
+      <div class="time-row">
+        <label class="time-label">종료</label>
+        <div class="time-selects">${timeSelectsHtml(todo.endTime, 'time-end-h', 'time-end-m')}</div>
+      </div>
+      <div class="time-actions">
+        <button class="time-save-btn">저장</button>
+        <button class="time-clear-btn">삭제</button>
+      </div>
+    </div>
     <select class="day-select${hasDayAssigned ? ' has-day' : ''}">${dayOptions}</select>
     <button class="recurring-btn${todo.recurring ? ' is-recurring' : ''}" title="${todo.recurring ? '반복 해제' : '매주 반복'}">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -237,6 +281,53 @@ function buildItem(todo) {
   li.querySelector('input[type="checkbox"]').addEventListener('change', () => toggleTodo(todo.id));
   li.querySelector('.recurring-btn').addEventListener('click', () => toggleRecurring(todo.id));
   li.querySelector('.delete-btn').addEventListener('click', () => deleteTodo(todo.id, li));
+
+  // ─── Time picker ──────────────────────────────────────
+  li.querySelector('.time-tag').addEventListener('click', e => {
+    e.stopPropagation();
+    const isOpening = !li.classList.contains('time-editing');
+    document.querySelectorAll('.todo-item.time-editing').forEach(el => el.classList.remove('time-editing'));
+    list.querySelectorAll('.time-dimmed').forEach(el => el.classList.remove('time-dimmed'));
+    if (isOpening) {
+      li.classList.add('time-editing');
+      list.querySelectorAll('.todo-item, .group-header').forEach(el => {
+        if (el !== li) el.classList.add('time-dimmed');
+      });
+      setTimeout(() => {
+        const outside = ev => {
+          if (!li.contains(ev.target)) {
+            li.classList.remove('time-editing');
+            list.querySelectorAll('.time-dimmed').forEach(el => el.classList.remove('time-dimmed'));
+            document.removeEventListener('click', outside);
+          }
+        };
+        document.addEventListener('click', outside);
+      }, 0);
+    }
+  });
+
+  li.querySelector('.time-save-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    const t = todos.find(x => x.id === todo.id);
+    if (t) {
+      const sh = String(li.querySelector('.time-start-h').value).padStart(2, '0');
+      const sm = String(li.querySelector('.time-start-m').value).padStart(2, '0');
+      const eh = String(li.querySelector('.time-end-h').value).padStart(2, '0');
+      const em = String(li.querySelector('.time-end-m').value).padStart(2, '0');
+      t.startTime = `${sh}:${sm}`;
+      t.endTime   = `${eh}:${em}`;
+    }
+    save();
+    render();
+  });
+
+  li.querySelector('.time-clear-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    const t = todos.find(x => x.id === todo.id);
+    if (t) { t.startTime = null; t.endTime = null; }
+    save();
+    render();
+  });
 
   li.querySelector('.todo-text').addEventListener('dblclick', e => {
     e.stopPropagation();
@@ -301,6 +392,141 @@ function sortedGroups(items) {
     if (b === null) return -1;
     return new Date(a) - new Date(b);
   }).map(k => ({ dateStr: k, todos: map.get(k) }));
+}
+
+// ─── Group todos for 전체 view (date → day → none) ───────
+function sortedGroupsAll(items) {
+  const dateMap = new Map();
+  const dayMap  = new Map();
+  const none    = [];
+
+  items.forEach(t => {
+    if (t.date) {
+      if (!dateMap.has(t.date)) dateMap.set(t.date, []);
+      dateMap.get(t.date).push(t);
+    } else if (t.day !== null && t.day !== undefined) {
+      if (!dayMap.has(t.day)) dayMap.set(t.day, []);
+      dayMap.get(t.day).push(t);
+    } else {
+      none.push(t);
+    }
+  });
+
+  const result = [];
+
+  [...dateMap.keys()]
+    .sort((a, b) => new Date(a) - new Date(b))
+    .forEach(dateStr => result.push({ type: 'date', key: dateStr, todos: dateMap.get(dateStr) }));
+
+  [1, 2, 3, 4, 5, 6, 0]
+    .filter(d => dayMap.has(d))
+    .forEach(day => result.push({ type: 'day', key: day, todos: dayMap.get(day) }));
+
+  if (none.length) result.push({ type: 'none', key: null, todos: none });
+
+  return result;
+}
+
+// ─── Day group header element ────────────────────────────
+function buildDayGroupHeader(key) {
+  const li = document.createElement('li');
+  if (key === null) {
+    li.className = 'group-header';
+    li.innerHTML = '<span>요일 미지정</span>';
+  } else {
+    const isToday = new Date().getDay() === key;
+    li.className = 'group-header' + (isToday ? ' group-today' : '');
+    li.innerHTML = `<span>${DAYS_KO[key]}요일</span>`;
+  }
+  return li;
+}
+
+// ─── Planner grid builder ────────────────────────────────
+function buildPlannerGrid(scheduled, startH, endH, showNow) {
+  let hoursHtml = '';
+  for (let h = startH; h <= endH; h++) {
+    hoursHtml += `<div class="pl-hour"><span class="pl-hour-label">${String(h).padStart(2,'0')}:00</span></div>`;
+  }
+
+  const eventsHtml = scheduled.map(t => {
+    const [sh, sm] = t.startTime.split(':').map(Number);
+    if (sh < startH || sh > endH) return '';
+    const top = (sh - startH) * HOUR_HEIGHT + sm;
+    let height = HOUR_HEIGHT;
+    if (t.endTime) {
+      const [eh, em] = t.endTime.split(':').map(Number);
+      const dur = (eh * 60 + em) - (sh * 60 + sm);
+      if (dur > 0) height = Math.max(24, dur);
+    }
+    const timeStr = t.startTime + (t.endTime ? '–' + t.endTime : '');
+    return `<div class="pl-event${isDone(t) ? ' pl-done' : ''}" style="top:${top}px;height:${height}px;">
+      <span class="pl-event-title">${escapeHtml(t.text)}</span>
+      <span class="pl-event-time">${timeStr}</span>
+    </div>`;
+  }).join('');
+
+  let nowLineHtml = '';
+  if (showNow) {
+    const now = new Date();
+    const nh = now.getHours(), nm = now.getMinutes();
+    if (nh >= startH && nh <= endH) {
+      const nowTop = (nh - startH) * HOUR_HEIGHT + nm;
+      nowLineHtml = `<div class="pl-now-line" style="top:${nowTop}px;"></div>`;
+    }
+  }
+
+  const totalH = (endH - startH + 1) * HOUR_HEIGHT;
+  return `<div class="pl-grid">
+    <div class="pl-hours" style="height:${totalH}px;">${hoursHtml}</div>
+    <div class="pl-events" style="height:${totalH}px;">${eventsHtml}${nowLineHtml}</div>
+  </div>`;
+}
+
+// ─── Planner render ──────────────────────────────────────
+function renderPlanner(items) {
+  const unassigned = items.filter(t => !t.startTime);
+  const scheduled  = items.filter(t => !!t.startTime);
+  const todayDow   = new Date().getDay();
+
+  const unassignedHtml = unassigned.length ? `
+    <div class="pl-unassigned">
+      <div class="pl-section-label">미배정</div>
+      <div class="pl-chips">${unassigned.map(t =>
+        `<span class="pl-chip${isDone(t) ? ' pl-chip-done' : ''}">${escapeHtml(t.text)}</span>`
+      ).join('')}</div>
+    </div>` : '';
+
+  if (!activeDate && activeDay === 'all') {
+    const dayMap = new Map();
+    scheduled.forEach(t => {
+      const key = (t.day !== null && t.day !== undefined) ? t.day : 'none';
+      if (!dayMap.has(key)) dayMap.set(key, []);
+      dayMap.get(key).push(t);
+    });
+
+    let sectionsHtml = '';
+    [1, 2, 3, 4, 5, 6, 0].forEach(d => {
+      if (!dayMap.has(d)) return;
+      const dayItems = dayMap.get(d);
+      const hourNums = dayItems.map(t => parseInt(t.startTime.split(':')[0], 10));
+      const endNums  = dayItems.map(t => t.endTime ? parseInt(t.endTime.split(':')[0], 10) : parseInt(t.startTime.split(':')[0], 10) + 1);
+      const startH   = Math.max(PLANNER_START, Math.min(...hourNums) - 1);
+      const endH     = Math.min(PLANNER_END,   Math.max(...endNums)  + 1);
+      sectionsHtml  += `<div class="pl-day-section">
+        <div class="pl-day-header${d === todayDow ? ' pl-day-today' : ''}">${DAYS_KO[d]}요일</div>
+        ${buildPlannerGrid(dayItems, startH, endH, d === todayDow)}
+      </div>`;
+    });
+
+    plannerEl.innerHTML = unassignedHtml +
+      (sectionsHtml || '<div class="pl-empty">시간이 설정된 할 일이 없어요</div>');
+  } else {
+    const showNow = (!activeDate && activeDay === todayDow) || (activeDate === getTodayStr());
+    plannerEl.innerHTML = unassignedHtml +
+      (scheduled.length
+        ? buildPlannerGrid(scheduled, PLANNER_START, PLANNER_END, showNow)
+        : unassigned.length ? '' : '<div class="pl-empty">할 일이 없어요</div>');
+  }
 }
 
 // ─── Group header element ─────────────────────────────────
@@ -399,22 +625,44 @@ function renderCalendar() {
 function render() {
   const items = filtered();
 
-  list.innerHTML = '';
-  const groups = sortedGroups(items);
-  if (groups.length > 1) {
-    groups.forEach(({ dateStr, todos: groupTodos }) => {
-      list.appendChild(buildGroupHeader(dateStr));
-      groupTodos.forEach(todo => list.appendChild(buildItem(todo)));
-    });
+  list.innerHTML    = '';
+  plannerEl.innerHTML = '';
+
+  if (viewMode === 'planner') {
+    list.style.display = 'none';
+    plannerEl.classList.add('visible');
+    renderPlanner(items);
   } else {
-    items.forEach(todo => list.appendChild(buildItem(todo)));
+    list.style.display = '';
+    plannerEl.classList.remove('visible');
+    if (!activeDate && activeDay === 'all') {
+      const groups = sortedGroupsAll(items);
+      if (groups.length > 1) {
+        groups.forEach(({ type, key, todos: groupTodos }) => {
+          list.appendChild(type === 'date' ? buildGroupHeader(key) : buildDayGroupHeader(key));
+          groupTodos.forEach(todo => list.appendChild(buildItem(todo)));
+        });
+      } else {
+        items.forEach(todo => list.appendChild(buildItem(todo)));
+      }
+    } else {
+      const groups = sortedGroups(items);
+      if (groups.length > 1) {
+        groups.forEach(({ dateStr, todos: groupTodos }) => {
+          list.appendChild(buildGroupHeader(dateStr));
+          groupTodos.forEach(todo => list.appendChild(buildItem(todo)));
+        });
+      } else {
+        items.forEach(todo => list.appendChild(buildItem(todo)));
+      }
+    }
   }
 
   const activeCount    = items.filter(t => !isDone(t)).length;
   const completedCount = items.filter(t => isDone(t) && !t.recurring).length;
   const hasAny         = todos.length > 0;
 
-  emptyState.classList.toggle('visible', items.length === 0);
+  emptyState.classList.toggle('visible', viewMode === 'list' && items.length === 0);
 
   if (hasAny) {
     footer.classList.add('visible');
@@ -452,6 +700,15 @@ dayBtns.forEach(btn => {
     activeDate = null;
     dayBtns.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
+    render();
+  });
+});
+
+// ─── View toggle ─────────────────────────────────────────
+viewBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    viewMode = btn.dataset.view;
+    viewBtns.forEach(b => b.classList.toggle('active', b === btn));
     render();
   });
 });
@@ -521,7 +778,7 @@ function parseVoiceInput(transcript) {
 
 function applyVoiceTodo({ text, date, day }) {
   if (!text) return;
-  todos.unshift({ id: Date.now(), text, done: false, date: date || null, day: day ?? null, recurring: null, lastDoneDate: null });
+  todos.unshift({ id: Date.now(), text, done: false, date: date || null, day: day ?? null, recurring: null, lastDoneDate: null, startTime: null, endTime: null });
   save();
   render();
 }
