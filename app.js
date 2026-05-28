@@ -44,6 +44,15 @@ function parseDateStr(dateStr) {
   return { y, m, d, dow: new Date(y, m - 1, d).getDay() };
 }
 
+function getTodayStr() {
+  const now = new Date();
+  return toDateStr(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function isDone(todo) {
+  return todo.recurring ? todo.lastDoneDate === getTodayStr() : todo.done;
+}
+
 const DAYS_KO = ['일', '월', '화', '수', '목', '금', '토'];
 
 // ─── XSS guard ───────────────────────────────────────────
@@ -59,20 +68,20 @@ function escapeHtml(str) {
 // ─── Create todo ─────────────────────────────────────────
 function createTodo(text) {
   return {
-    id:   Date.now(),
-    text: text.trim(),
-    done: false,
-    date: activeDate || null,
-    day:  activeDate ? parseDateStr(activeDate).dow : (activeDay === 'all' ? null : activeDay),
+    id:           Date.now(),
+    text:         text.trim(),
+    done:         false,
+    date:         activeDate || null,
+    day:          activeDate ? parseDateStr(activeDate).dow : (activeDay === 'all' ? null : activeDay),
+    recurring:    null,
+    lastDoneDate: null,
   };
 }
 
 // ─── Past-incomplete check ────────────────────────────────
 function isPastIncomplete(todo) {
-  if (!todo.date || todo.done) return false;
-  const now = new Date();
-  const todayStr = toDateStr(now.getFullYear(), now.getMonth(), now.getDate());
-  return todo.date < todayStr;
+  if (!todo.date || todo.done || todo.recurring) return false;
+  return todo.date < getTodayStr();
 }
 
 // ─── Add ─────────────────────────────────────────────────
@@ -89,7 +98,23 @@ function addTodo() {
 // ─── Toggle ──────────────────────────────────────────────
 function toggleTodo(id) {
   const todo = todos.find(t => t.id === id);
-  if (todo) todo.done = !todo.done;
+  if (!todo) return;
+  if (todo.recurring) {
+    const today = getTodayStr();
+    todo.lastDoneDate = todo.lastDoneDate === today ? null : today;
+  } else {
+    todo.done = !todo.done;
+  }
+  save();
+  render();
+}
+
+// ─── Toggle recurring ────────────────────────────────────
+function toggleRecurring(id) {
+  const todo = todos.find(t => t.id === id);
+  if (!todo) return;
+  todo.recurring = todo.recurring ? null : 'weekly';
+  if (!todo.recurring) todo.lastDoneDate = null;
   save();
   render();
 }
@@ -106,17 +131,18 @@ function deleteTodo(id, itemEl) {
 
 // ─── Clear completed ─────────────────────────────────────
 function clearCompleted() {
-  const completed = list.querySelectorAll('.todo-item.done');
-  if (!completed.length) return;
-  let pending = completed.length;
-  completed.forEach(el => {
+  const toRemove = [...list.querySelectorAll('.todo-item.done')].filter(el => {
+    const todo = todos.find(t => t.id === Number(el.dataset.id));
+    return todo && !todo.recurring;
+  });
+  if (!toRemove.length) return;
+  const removeIds = new Set(toRemove.map(el => Number(el.dataset.id)));
+  let pending = toRemove.length;
+  toRemove.forEach(el => {
     el.classList.add('removing');
     el.addEventListener('animationend', () => {
       if (--pending === 0) {
-        const visibleIds = new Set(
-          [...list.querySelectorAll('.todo-item')].map(el => Number(el.dataset.id))
-        );
-        todos = todos.filter(t => !(t.done && visibleIds.has(t.id)));
+        todos = todos.filter(t => !removeIds.has(t.id));
         save();
         render();
       }
@@ -126,8 +152,14 @@ function clearCompleted() {
 
 // ─── Filtered view ───────────────────────────────────────
 function filtered() {
-  if (activeDate)          return todos.filter(t => t.date === activeDate);
-  if (activeDay !== 'all') return todos.filter(t => t.day  === activeDay);
+  if (activeDate) {
+    const dow = parseDateStr(activeDate).dow;
+    return todos.filter(t =>
+      t.date === activeDate ||
+      (t.recurring && t.day === dow && activeDate >= getTodayStr())
+    );
+  }
+  if (activeDay !== 'all') return todos.filter(t => t.day === activeDay);
   return todos;
 }
 
@@ -159,10 +191,11 @@ function startEdit(id, textEl) {
 
 // ─── Build item element ──────────────────────────────────
 function buildItem(todo) {
+  const done        = isDone(todo);
   const isIncomplete = isPastIncomplete(todo);
 
   const li = document.createElement('li');
-  li.className = 'todo-item' + (todo.done ? ' done' : '') + (isIncomplete ? ' incomplete' : '');
+  li.className = 'todo-item' + (done ? ' done' : '') + (isIncomplete ? ' incomplete' : '');
   li.dataset.id = todo.id;
   li.draggable = true;
 
@@ -183,17 +216,26 @@ function buildItem(todo) {
   li.innerHTML = `
     <span class="drag-handle">⠿</span>
     <label class="check-wrapper" for="${checkId}">
-      <input type="checkbox" id="${checkId}" ${todo.done ? 'checked' : ''} ${isIncomplete ? 'disabled' : ''} />
+      <input type="checkbox" id="${checkId}" ${done ? 'checked' : ''} ${isIncomplete ? 'disabled' : ''} />
       <span class="checkmark"></span>
     </label>
     <span class="todo-text">${escapeHtml(todo.text)}</span>
     ${dateTag}
     ${incompleteTag}
     <select class="day-select${hasDayAssigned ? ' has-day' : ''}">${dayOptions}</select>
+    <button class="recurring-btn${todo.recurring ? ' is-recurring' : ''}" title="${todo.recurring ? '반복 해제' : '매주 반복'}">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="17 1 21 5 17 9"/>
+        <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+        <polyline points="7 23 3 19 7 15"/>
+        <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+      </svg>
+    </button>
     <button class="delete-btn" title="삭제">&#x2715;</button>
   `;
 
   li.querySelector('input[type="checkbox"]').addEventListener('change', () => toggleTodo(todo.id));
+  li.querySelector('.recurring-btn').addEventListener('click', () => toggleRecurring(todo.id));
   li.querySelector('.delete-btn').addEventListener('click', () => deleteTodo(todo.id, li));
 
   li.querySelector('.todo-text').addEventListener('dblclick', e => {
@@ -291,17 +333,24 @@ function renderCalendar() {
   const countMap = {};
   todos.forEach(t => { if (t.date) countMap[t.date] = (countMap[t.date] || 0) + 1; });
 
+  const recurringDays = new Set(
+    todos.filter(t => t.recurring && t.day !== null).map(t => t.day)
+  );
+
   const dowRow     = DAYS_KO.map(d => `<span class="cal-dow">${d}</span>`).join('');
   const emptySlots = Array(firstDay).fill('<span class="cal-cell empty"></span>').join('');
 
   let dayCells = '';
   for (let d = 1; d <= daysInMonth; d++) {
     const ds  = toDateStr(calYear, calMonth, d);
+    const dow = new Date(calYear, calMonth, d).getDay();
     let cls   = 'cal-cell';
     if (ds === todayStr)   cls += ' cal-today';
     if (ds === activeDate) cls += ' cal-selected';
-    const dot = countMap[ds] ? '<span class="cal-dot"></span>' : '';
-    dayCells += `<button class="${cls}" data-date="${ds}">${d}${dot}</button>`;
+    const dot      = countMap[ds]                              ? '<span class="cal-dot"></span>'           : '';
+    const recurDot = recurringDays.has(dow) && ds >= todayStr ? '<span class="cal-recurring-dot"></span>' : '';
+    const dots     = (dot || recurDot) ? `<span class="cal-dots">${dot}${recurDot}</span>` : '';
+    dayCells += `<button class="${cls}" data-date="${ds}">${d}${dots}</button>`;
   }
 
   calEl.innerHTML = `
@@ -361,8 +410,8 @@ function render() {
     items.forEach(todo => list.appendChild(buildItem(todo)));
   }
 
-  const activeCount    = items.filter(t => !t.done).length;
-  const completedCount = items.filter(t => t.done).length;
+  const activeCount    = items.filter(t => !isDone(t)).length;
+  const completedCount = items.filter(t => isDone(t) && !t.recurring).length;
   const hasAny         = todos.length > 0;
 
   emptyState.classList.toggle('visible', items.length === 0);
@@ -387,7 +436,7 @@ function render() {
       ? `${DAYS_KO[activeDay]}요일 할 일을 모두 완료했어요!`
       : `${DAYS_KO[activeDay]}요일 할 일이 ${activeCount}개 남았어요.`;
   } else {
-    const totalActive = todos.filter(t => !t.done).length;
+    const totalActive = todos.filter(t => !isDone(t)).length;
     subtitleEl.textContent = totalActive === 0
       ? '모든 할 일을 완료했어요!'
       : `${totalActive}개의 할 일이 남아있어요.`;
@@ -472,7 +521,7 @@ function parseVoiceInput(transcript) {
 
 function applyVoiceTodo({ text, date, day }) {
   if (!text) return;
-  todos.unshift({ id: Date.now(), text, done: false, date: date || null, day: day ?? null });
+  todos.unshift({ id: Date.now(), text, done: false, date: date || null, day: day ?? null, recurring: null, lastDoneDate: null });
   save();
   render();
 }

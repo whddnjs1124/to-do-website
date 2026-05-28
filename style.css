@@ -301,6 +301,34 @@ body {
   text-decoration-color: var(--done-text);
 }
 
+/* ─── Recurring Button ─── */
+.recurring-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 5px;
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity var(--transition), color var(--transition);
+}
+
+.todo-item:hover .recurring-btn { opacity: 0.45; }
+
+.recurring-btn.is-recurring {
+  opacity: 1 !important;
+  color: var(--accent);
+}
+
+.recurring-btn:hover {
+  opacity: 1 !important;
+  color: var(--accent);
+}
+
 /* ─── Delete Button ─── */
 .delete-btn {
   flex-shrink: 0;
@@ -453,6 +481,14 @@ body {
 .cal-cell.cal-selected:hover    { background: var(--accent); opacity: 0.85; }
 .cal-cell.empty                 { pointer-events: none; }
 
+.cal-dots {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  justify-content: center;
+  min-height: 4px;
+}
+
 .cal-dot {
   width: 4px;
   height: 4px;
@@ -461,7 +497,16 @@ body {
   flex-shrink: 0;
 }
 
-.cal-cell.cal-selected .cal-dot { background: rgba(255, 255, 255, 0.75); }
+.cal-recurring-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.cal-cell.cal-selected .cal-dot,
+.cal-cell.cal-selected .cal-recurring-dot { background: rgba(255, 255, 255, 0.75); }
 
 /* ─── Date Tag on todo items ─── */
 .date-tag {
